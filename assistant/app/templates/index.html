@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DWH Assistant</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.1/css/all.css"> 
+
+    <style>
+        :root{
+            --bg: #0d0d0d;            /* page background */
+            --panel: #121212;         /* chat panel */
+            --muted: #6b6b6b;         /* muted text */
+            --accent: #ff6a00;        /* orange accent */
+            --card: #1b1b1b;          /* message card */
+            --glass: rgba(255,255,255,0.03);
+        }
+        html, body { height: 100%; margin: 0; background: radial-gradient(1200px 600px at 10% 10%, rgba(255,106,0,0.06), transparent), var(--bg); color: #eee; font-family: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+        .app-container{ min-height:100vh; display:flex; flex-direction:column; }
+
+        /* Header */
+        header.app-header{ display:flex; align-items:center; justify-content:space-between; padding:18px 28px; border-bottom: 1px solid rgba(255,255,255,0.03); background:linear-gradient(90deg, rgba(0,0,0,0.25), transparent); }
+        .brand{ display:flex; align-items:center; gap:14px; }
+        .brand h1{ font-size:18px; margin:0; letter-spacing:0.4px; }
+        .brand .subtitle{ font-size:12px; color:var(--muted); margin-top:2px }
+        .logo-badge{ width:44px; height:44px; border-radius:10px; background: linear-gradient(135deg, var(--accent), #ff914d); display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+        .logo-badge i{ transform: rotate(-12deg); }
+
+        /* Main body */
+        .main{ flex:1; display:flex; gap:20px; padding:20px; }
+        .chat-panel{ flex:1; display:flex; flex-direction:column; max-width:1100px; margin:0 auto; background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border-radius:14px; padding:18px; box-shadow: 0 8px 30px rgba(0,0,0,0.7); }
+
+        #chatbox { flex:1; overflow:auto; padding:12px; border-radius:8px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005)); }
+        .message{ display:flex; gap:12px; align-items:flex-start; margin-bottom:12px; max-width:85%; }
+        .message .avatar{ width:46px; height:46px; border-radius:50%; object-fit:cover; border:2px solid rgba(255,255,255,0.04); box-shadow: 0 6px 14px rgba(0,0,0,0.6); }
+        .message .bubble{ padding:12px 14px; border-radius:12px; font-size:14px; line-height:1.4; box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+
+        /* Assistant (left) */
+        .assistant{ align-self:flex-start; }
+        .assistant .bubble{ background: linear-gradient(180deg, var(--card), #171717); border-left:3px solid rgba(255,106,0,0.12); color:#eaeaea; }
+
+        /* User (right) */
+        .user{ align-self:flex-end; margin-left:auto; flex-direction:row-reverse; }
+        .user .bubble{ background: linear-gradient(180deg, rgba(255,106,0,0.12), rgba(255,106,0,0.06)); color:#fff; border:1px solid rgba(255,106,0,0.12); }
+
+        /* special text styles */
+        .bubble pre{ background:transparent; margin:0; font-family:monospace; font-size:13px; overflow:auto; }
+        .bubble .sql-label{ display:block; font-size:12px; color:var(--muted); margin-bottom:8px; }
+
+        /* input area */
+        .composer{ display:flex; gap:12px; align-items:center; padding-top:12px; }
+        .input-field{ flex:1; background:transparent; border-radius:999px; border:1px solid rgba(255,255,255,0.05); padding:12px 16px; color: #fff; }
+        .input-actions{ display:flex; gap:8px; align-items:center; }
+        .btn-accent{ background: linear-gradient(90deg,var(--accent), #ff914d); border:none; color:#111; font-weight:600; padding:10px 16px; border-radius:999px; box-shadow: 0 8px 20px rgba(255,106,0,0.08); }
+        .btn-muted{ background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted); padding:8px 10px; border-radius:8px; }
+
+        /* spinner */
+        .spinner { width:40px; height:40px; border-radius:50%; border:4px solid rgba(255,255,255,0.06); border-top-color: var(--accent); animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .timer { font-size:12px; color:var(--muted); margin-left:8px; }
+
+        /* manual panel */
+        .manual-panel{ margin-top:12px; padding:12px; border-radius:8px; background:var(--glass); border:1px solid rgba(255,255,255,0.02); }
+
+        /* small screens */
+        @media (max-width:768px){ .main{ padding:12px; } .chat-panel{ border-radius:0; padding:12px; } .brand h1{ font-size:16px } }
+
+        /* subtle message entrance */
+        .message{ opacity:0; transform: translateY(8px); animation: appear .18s ease forwards; }
+        @keyframes appear{ to { opacity:1; transform:none; } }
+
+        /* code block styling */
+        code, pre { background: rgba(0,0,0,0.35); padding:4px 6px; border-radius:6px; }
+
+        /* pandas table styling */
+        .chat-panel table.table, .chat-panel table.dataframe {
+            border-collapse: collapse;
+            width: 100%;
+            border: 1px solid var(--accent);
+            margin: 6px 0;
+            color: #ffffff;
+            background: transparent;
+        }
+        .chat-panel table.table th, .chat-panel table.dataframe th {
+            color: #ffffff;
+            border: 1px solid rgba(255,106,0,0.18);
+            background: rgba(255,106,0,0.06);
+            font-weight: 600;
+            padding: 8px 10px;
+            text-align: left;
+        }
+        .chat-panel table.table td, .chat-panel table.dataframe td {
+            color: #ffffff;
+            border: 1px solid rgba(255,106,0,0.12);
+            padding: 8px 10px;
+        }
+        .chat-panel table.table tbody tr:nth-child(odd){ background: rgba(255,255,255,0.01); }
+        .chat-panel .bubble table{ margin:0; }
+
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-badge"><i class="fas fa-database" style="color:white"></i></div>
+                <div>
+                    <h1>DWH Assistant — KarpovExpress</h1>
+                    <div class="subtitle">Интерактивный помощник по аналитике и SQL</div>
+                </div>
+            </div>
+            <div style="display:flex; gap:12px; align-items:center;">
+                <div style="font-size:13px; color:var(--muted)">Online</div>
+                <button id="manualQueryToggle" class="btn btn-muted">Ручной SQL</button>
+            </div>
+        </header>
+
+        <main class="main">
+            <section class="chat-panel">
+                <div id="chatbox" aria-live="polite"></div>
+
+                <div class="composer" role="form" aria-label="Отправить запрос">
+                    <input id="userQuery" name="user_query" class="input-field" type="text" placeholder="Введите ваш запрос и нажмите Enter (Ctrl/Cmd+Enter - отправить)" autocomplete="off">
+                    <div class="input-actions">
+                        <button id="cancelButton" class="btn btn-muted" title="Прервать" style="display:none"><i class="fas fa-stop"></i></button>
+                        <button id="submitButton" class="btn-accent"><i class="fas fa-paper-plane"></i>&nbsp;Отправить</button>
+                    </div>
+                </div>
+
+                <div id="manualQueryPanel" class="manual-panel" style="display:none;">
+                    <label for="manualQueryInput" style="font-size:13px; color:var(--muted);">Ручной SQL (можно вставить несколько строк)</label>
+                    <textarea id="manualQueryInput" class="form-control mt-2" rows="4" placeholder="Введите SQL запрос"></textarea>
+                    <div style="display:flex; gap:8px; margin-top:10px;">
+                        <button id="executeManualQuery" class="btn-accent">Выполнить запрос</button>
+                        <button id="clearManual" class="btn btn-muted">Очистить</button>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <footer style="padding:14px 24px; text-align:center; color:var(--muted); font-size:13px">Подсказки: используйте Ctrl/Cmd+Enter для отправки. Автообновление результатов зависит от бэкенда.</footer>
+    </div>
+
+    <script>
+        // --- helpers ---
+        function escapeHtml(unsafe) {
+            return unsafe
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+        }
+
+        function nlToBr(s){ return s.replace(/\n/g, '<br>'); }
+
+        // --- DOM refs ---
+        const chatbox = document.getElementById('chatbox');
+        const userQueryInput = document.getElementById('userQuery');
+        const submitButton = document.getElementById('submitButton');
+        const cancelButton = document.getElementById('cancelButton');
+        const manualQueryToggle = document.getElementById('manualQueryToggle');
+        const manualQueryPanel = document.getElementById('manualQueryPanel');
+        const executeManualQuery = document.getElementById('executeManualQuery');
+        const manualQueryInput = document.getElementById('manualQueryInput');
+        const clearManual = document.getElementById('clearManual');
+
+        // --- avatars (keep existing) ---
+        const AVATAR_USER = '/static/user_avatar.png';
+        const AVATAR_ASSISTANT = '/static/assistant_avatar.png';
+
+        // --- events ---
+        document.addEventListener('DOMContentLoaded', ()=>{
+            manualQueryToggle.addEventListener('click', ()=>{
+                manualQueryPanel.style.display = manualQueryPanel.style.display === 'none' ? 'block' : 'none';
+            });
+
+            clearManual.addEventListener('click', ()=> manualQueryInput.value = '');
+
+            executeManualQuery.addEventListener('click', ()=>{
+                const manual = manualQueryInput.value.trim();
+                if(!manual){ alert('Пожалуйста, введите SQL запрос'); return; }
+                addMessageToChat({content: nlToBr(escapeHtml(manual)), isUser:true, rawHtml:true});
+
+                fetch('/', {
+                    method:'POST',
+                    headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+                    body: JSON.stringify({manualQuery: manual})
+                }).then(r=>r.json()).then(data=>{
+                    if(data.sql) addMessageToChat({content: 'SQL запрос:<br>'+nlToBr(escapeHtml(data.sql)), isUser:false, rawHtml:true});
+                    if(data.result) addMessageToChat({content: nlToBr(escapeHtml(data.result)), isUser:false, rawHtml:true});
+                    if(data.error) addMessageToChat({content: 'Ошибка:<br>'+nlToBr(escapeHtml(data.error)), isUser:false, isError:true, rawHtml:true});
+                }).catch(err=>{
+                    console.error(err); addMessageToChat({content:'Сетeвая ошибка: '+escapeHtml(String(err)), isUser:false, isError:true});
+                });
+            });
+        });
+
+        // --- message rendering ---
+        function addMessageToChat({content, isUser=true, isError=false, rawHtml=false}){
+            const msg = document.createElement('div');
+            msg.className = 'message '+(isUser? 'user':'assistant');
+
+            const avatar = document.createElement('img');
+            avatar.className = 'avatar';
+            avatar.src = isUser ? AVATAR_USER : AVATAR_ASSISTANT;
+            avatar.alt = isUser ? 'Вы' : 'Ассистент';
+
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+
+            if(isError){
+                bubble.style.border = '1px solid rgba(255,80,80,0.16)';
+                bubble.style.background = 'linear-gradient(180deg, rgba(80,0,0,0.12), rgba(40,0,0,0.04))';
+            }
+
+            // allow HTML when rawHtml is true (we already escaped where needed)
+            if(rawHtml){ bubble.innerHTML = content; }
+            else { bubble.textContent = content; }
+
+            msg.appendChild(avatar);
+            msg.appendChild(bubble);
+            chatbox.appendChild(msg);
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        // --- send / fetch logic ---
+        
+        // Clean pandas-generated HTML tables (remove index column, strip appended numeric ids)
+        function cleanPandasTable(html){
+            try{
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const table = doc.querySelector('table');
+                if(!table) return html;
+
+                // If first header cell is empty or looks like an auto-index, remove the first column
+                const firstTh = table.querySelector('thead th');
+                if(firstTh && (firstTh.textContent.trim() === '' || firstTh.textContent.toLowerCase().indexOf('index') !== -1 || firstTh.textContent.toLowerCase().indexOf('unnamed') !== -1)){
+                    // remove first header cell
+                    table.querySelectorAll('thead tr').forEach(function(tr){ if(tr.firstElementChild) tr.removeChild(tr.firstElementChild); });
+                    // remove first cell from each body row
+                    table.querySelectorAll('tbody tr').forEach(function(tr){ if(tr.firstElementChild) tr.removeChild(tr.firstElementChild); });
+                }
+
+                // Trim trailing numeric ids from the first data column if the second column is numeric
+                table.querySelectorAll('tbody tr').forEach(function(tr){
+                    var tds = tr.querySelectorAll('td');
+                    if(tds.length >= 2){
+                        var nameCell = tds[0];
+                        var priceCell = tds[1];
+                        var nameText = nameCell.textContent.trim();
+                        var priceText = priceCell.textContent.trim();
+                        var tokens = nameText.split(' ');
+                        var lastToken = tokens[tokens.length-1];
+                        // if last token is numeric and price looks numeric, remove token
+                        if(!isNaN(Number(lastToken)) && !isNaN(Number(priceText.replace(/[^0-9.-]/g, '')))){
+                            tokens.pop();
+                            nameCell.textContent = tokens.join(' ');
+                        }
+                    }
+                });
+
+                return table.outerHTML;
+            } catch(e){
+                console.warn('cleanPandasTable failed', e);
+                return html;
+            }
+        }
+
+        function sendMessage(){
+            const text = userQueryInput.value.trim();
+            if(!text) return;
+
+            submitButton.disabled = true;
+            cancelButton.style.display = 'inline-block';
+
+            addMessageToChat({content: nlToBr(escapeHtml(text)), isUser:true, rawHtml:true});
+
+            // placeholder spinner message
+            const spinnerMsg = document.createElement('div');
+            spinnerMsg.className = 'message assistant';
+            spinnerMsg.innerHTML = `<img src="${AVATAR_ASSISTANT}" class="avatar" alt="Ассистент"><div class="bubble" style="display:flex;align-items:center;gap:10px"><div class="spinner" aria-hidden="true"></div><div class="timer">0 сек</div></div>`;
+            chatbox.appendChild(spinnerMsg);
+            chatbox.scrollTop = chatbox.scrollHeight;
+
+            var seconds = 0;
+            const timerNode = spinnerMsg.querySelector('.timer');
+            const timerInterval = setInterval(function(){ seconds++; timerNode.textContent = seconds + ' сек'; }, 1000);
+
+            const controller = new AbortController();
+            const signal = controller.signal;
+
+            const formData = new FormData();
+            formData.append('user_query', text);
+
+            fetch('/', { method:'POST', body: formData, headers:{'X-Requested-With':'XMLHttpRequest'}, signal })
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                clearInterval(timerInterval);
+                if(spinnerMsg.parentNode) spinnerMsg.remove();
+                submitButton.disabled = false;
+                cancelButton.style.display = 'none';
+
+                if(data.sql){ addMessageToChat({content:'SQL запрос:<br>'+nlToBr(escapeHtml(data.sql)), isUser:false, rawHtml:true}); }
+
+                if(data.result){
+                    var resultHtml = data.result;
+                    if(typeof resultHtml === 'string' && resultHtml.trim().startsWith('<table')){
+                        resultHtml = cleanPandasTable(resultHtml);
+                    }
+                    addMessageToChat({content: resultHtml, isUser:false, rawHtml:true});
+                }
+
+                if(data.error){ var err = 'Кажется, что-то сломалось:<br>'+nlToBr(escapeHtml(data.error)); if(data.rawResponse) err += '<br><br>Сырой ответ:<br>' + nlToBr(escapeHtml(data.rawResponse)); addMessageToChat({content:err, isUser:false, isError:true, rawHtml:true}); }
+            })
+            .catch(function(err){
+                clearInterval(timerInterval);
+                if(spinnerMsg.parentNode) spinnerMsg.remove();
+                submitButton.disabled = false;
+                cancelButton.style.display = 'none';
+
+                if(err.name === 'AbortError'){
+                    addMessageToChat({content:'Операция прервана пользователем', isUser:false, isError:true});
+                } else {
+                    console.error(err);
+                    addMessageToChat({content:'Ошибка: '+escapeHtml(String(err)), isUser:false, isError:true});
+                }
+            });
+
+            cancelButton.onclick = function(){ controller.abort(); };
+            userQueryInput.value = '';
+        }
+
+        // --- CSV download / utilities ---
+        
+        // keep track of last user query so backend can return full dataset when requested
+        var lastQuery = '';
+
+        function downloadBlob(blob, filename){
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'download.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(()=>URL.revokeObjectURL(url), 5000);
+        }
+
+        function escapeCsvCell(str){
+            if(str == null) return '';
+            str = String(str);
+            // if contains quote, comma, newline, carriage return, semicolon or pipe -> quote the cell
+            if (/[",\n\r,;|]/.test(str)) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        }
+
+        function tableToCSV(table){
+            const rows = Array.from(table.querySelectorAll('tr'));
+            const csv = rows.map(row => {
+                const cells = Array.from(row.querySelectorAll('th,td'));
+                return cells.map(c => escapeCsvCell(c.textContent.trim())).join(',');
+            }).join('\n');
+            return csv;
+        }
+
+        // attach small toolbar to message bubble that contains a table
+        function attachTableActions(bubble, queryForFull){
+            try{
+                const existing = bubble.querySelector('.table-actions');
+                if(existing) return;
+                const table = bubble.querySelector('table');
+                if(!table) return;
+
+                const actions = document.createElement('div');
+                actions.className = 'table-actions';
+                actions.style.display = 'flex';
+                actions.style.gap = '8px';
+                actions.style.marginTop = '8px';
+
+                const downloadVisible = document.createElement('button');
+                downloadVisible.className = 'btn btn-muted';
+                downloadVisible.textContent = 'Скачать таблицу CSV';
+                downloadVisible.onclick = function(){
+                    const csv = tableToCSV(table);
+                    const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+                    downloadBlob(blob, 'table.csv');
+                };
+
+                const downloadFull = document.createElement('button');
+                downloadFull.className = 'btn btn-accent';
+                downloadFull.textContent = 'Скачать весь набор (CSV)';
+                downloadFull.onclick = function(){
+                    // ask backend for full dataset; backend should honor download_full=1 and return CSV or JSON with csv
+                    if(!queryForFull){ alert('Не удалось определить исходный запрос для полного набора.'); return; }
+
+                    downloadFull.disabled = true;
+                    downloadFull.textContent = 'Генерируется...';
+
+                    const fd = new FormData();
+                    fd.append('user_query', queryForFull);
+                    fd.append('download_full', '1');
+
+                    fetch('/', { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest'} })
+                    .then(function(resp){
+                        const ct = resp.headers.get('content-type') || '';
+                        if(ct.indexOf('text/csv') !== -1 || ct.indexOf('application/csv') !== -1 || ct.indexOf('application/octet-stream') !== -1){
+                            return resp.blob().then(function(b){ downloadBlob(b, 'full_dataset.csv'); });
+                        }
+                        return resp.json().then(function(j){
+                            // possible shapes: { csv: "..." } or { csv_base64: "..." }
+                            if(j.csv){ const blob = new Blob([j.csv], {type:'text/csv;charset=utf-8;'}); downloadBlob(blob, 'full_dataset.csv'); }
+                            else if(j.csv_base64){ const binary = atob(j.csv_base64); const len = binary.length; const bytes = new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=binary.charCodeAt(i); downloadBlob(new Blob([bytes], {type:'text/csv'}), 'full_dataset.csv'); }
+                            else if(j.result && typeof j.result === 'string' && j.result.trim().startsWith('<table')){
+                                // backend embedded table HTML with more rows
+                                const cleaned = cleanPandasTable(j.result);
+                                const wrapper = document.createElement('div'); wrapper.innerHTML = cleaned; const tbl = wrapper.querySelector('table'); if(tbl){ const csv = tableToCSV(tbl); downloadBlob(new Blob([csv],{type:'text/csv'}),'full_dataset.csv'); }
+                            } else {
+                                alert('Не удалось получить CSV от бэкенда.');
+                            }
+                        });
+                    })
+                    .catch(function(e){ console.error(e); alert('Ошибка при загрузке полного набора.'); })
+                    .finally(function(){ downloadFull.disabled = false; downloadFull.textContent = 'Скачать весь набор (CSV)'; });
+                };
+
+                actions.appendChild(downloadVisible);
+                actions.appendChild(downloadFull);
+
+                bubble.appendChild(actions);
+            } catch(e){ console.warn('attachTableActions failed', e); }
+        }
+
+        // save lastQuery when sending
+        var originalSendMessage = sendMessage;
+        sendMessage = function(){
+            lastQuery = userQueryInput.value.trim();
+            return originalSendMessage.apply(this, arguments);
+        };
+
+        // when adding HTML result, attach actions to last message bubble
+        var originalAddMessageToChat = addMessageToChat;
+        addMessageToChat = function(opts){
+            originalAddMessageToChat.apply(this, arguments);
+            try{
+                if(opts && opts.rawHtml && typeof opts.content === 'string' && opts.content.trim().startsWith('<table') || (opts && opts.rawHtml && opts.content.indexOf('<table') !== -1)){
+                    const lastMsg = chatbox.querySelector('.message:last-child .bubble');
+                    if(lastMsg) attachTableActions(lastMsg, lastQuery);
+                }
+            }catch(e){ console.warn(e); }
+        };
+
+// keyboard shortcuts
+
+        userQueryInput.addEventListener('keydown', (e)=>{
+            if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){
+                e.preventDefault(); sendMessage();
+            } else if(e.key === 'Enter' && !e.shiftKey){
+                e.preventDefault(); sendMessage();
+            }
+        });
+
+        submitButton.addEventListener('click', (e)=>{ e.preventDefault(); sendMessage(); });
+
+    </script>
+</body>
+</html>
