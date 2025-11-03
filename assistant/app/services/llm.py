@@ -23,7 +23,6 @@ def yandex_gpt_query(user_query):
     API_KEY = os.getenv("YANDEX_API_KEY")
     FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 
-    # Check environment
     if not API_KEY:
         return {
             "status": "failure",
