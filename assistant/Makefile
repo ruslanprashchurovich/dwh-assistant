@@ -1,20 +1,24 @@
 .PHONY: setup run lint clean
 
 VENV := .venv
-PYTHON := $(VENV)/bin/python
-PIP := $(VENV)/bin/pip
+PYTHON := $(VENV)\Scripts\python
+PIP := $(VENV)\Scripts\pip
+
+help:
+	@echo "Usage: make <target>"
+	@echo "Targets: setup run lint clean"
 
 # Install virtual environment and dependencies
 setup:
 	@echo "Creating virtual environment..."
-	python3 -m venv $(VENV)
+	python -m venv $(VENV)
 	@echo "Virtual environment created."
 	@echo "Installing dependencies..."
 	$(PIP) install -r requirements.txt
 	@echo "Dependencies installed."
 
 # To activate the virtual environment, run:
-# source .venv/bin/activate
+# .venv\Scripts\activate
 # To deactivate the virtual environment, run:
 # deactivate
 
@@ -29,7 +33,7 @@ lint:
 # Clean project directory from temporary files
 clean:
 	@echo "Cleaning up..."
-	find . -type f -name '*.pyc' -delete
-	find . -type d -name '__pycache__' -delete
-	rm -rf $(VENV)
+	-forfiles /P . /S /M *.pyc /C "cmd /c del @file" 2>nul
+	-forfiles /P . /S /M __pycache__ /C "cmd /c if @isdir==TRUE rmdir /s /q @file" 2>nul
+	if exist $(VENV) rmdir /s /q $(VENV)
 	@echo "Cleaned up."
