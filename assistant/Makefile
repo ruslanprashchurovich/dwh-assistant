@@ -1,13 +1,12 @@
 .PHONY: setup run lint clean
 
 VENV := .venv
-PYTHON := $(VENV)/Scripts/python.exe
-PIP := $(VENV)/Scripts/pip.exe
+PYTHON := $(VENV)\Scripts\python.exe
+PIP := $(VENV)\Scripts\pip.exe
 
 # Install virtual environment and dependencies
 setup:
 	@echo "Creating virtual environment..."
-	python -m venv $(VENV)
 	python -m venv $(VENV)
 	@echo "Virtual environment created."
 	@echo "Installing dependencies..."
