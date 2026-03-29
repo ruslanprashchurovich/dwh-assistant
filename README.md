@@ -15,11 +15,15 @@
 ```env
 DEBUG_MODE=0
 LLM_PROVIDER=YANDEX
-CH_HOST=<your db host>
-CH_USER=<your db user>
-CH_PSW=<your db password>
-YANDEX_API_KEY=<your yandex api-key>
-YANDEX_FOLDER_ID=<your yandex folder id>
+PG_STUDENT_HOST=<your db host>
+PG_STUDENT_USER=<your db user>
+PG_STUDENT_DBNAME=<your db name>
+PG_STUDENT_PASSWORD=<your db password>
+PG_STUDENT_PORT=<your db port>
+YANDEX_CLOUD_API_KEY=<your yandex api-key>
+YANDEX_CLOUD_FOLDER=<your yandex folder id>
+YANDEX_CLOUD_MODEL=<yandex cloud model name>
+TABLES=<tables for analysis>
 ```
 
 > Замените значения в угловых скобках на реальные данные вашей ClickHouse-базы и Yandex Cloud.
@@ -30,21 +34,21 @@ YANDEX_FOLDER_ID=<your yandex folder id>
 
 ```bash
 make setup
-source .venv/bin/activate
+.venv\Scripts\activate
 make run
 ```
 
-> На Windows вместо `source .venv/bin/activate` используйте:
+> На Linux вместо `.venv\Scripts\activate` используйте:
 >
 > ```cmd
-> .venv\Scripts\activate
+> source .venv/bin/activate
 > ```
 
-После этого сервис будет доступен локально (обычно по адресу `http://127.0.0.1:8000` — уточните в выводе терминала).
+После этого сервис будет доступен локально (обычно по адресу `http://127.0.0.1:8000`).
 
 ## Технологии
 
 - **Языковая модель**: YandexGPT (через Yandex Cloud)
 - **База данных**: ClickHouse
-- **Backend**: Python (FastAPI / Flask — уточните по коду)
+- **Backend**: Python (Flask)
 - **Управление зависимостями**: `make`, виртуальное окружение

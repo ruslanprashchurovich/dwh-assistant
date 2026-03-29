@@ -5,3 +5,4 @@ python-dotenv==1.0.1
 numpy==1.26.4
 flake8==7.0.0
 requests==2.31.0
+openai==2.15.0

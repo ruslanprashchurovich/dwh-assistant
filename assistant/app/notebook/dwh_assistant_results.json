@@ -1,0 +1,20 @@
+[
+  {
+    "query": "Покажи все продукты дороже 1000 рублей",
+    "sql": "SELECT * FROM products WHERE price > 1000;",
+    "error_description": "",
+    "timestamp": "2026-03-29T23:21:34.882660"
+  },
+  {
+    "query": "Найди топ-5 самых дорогих товаров",
+    "sql": "SELECT * FROM products ORDER BY price DESC LIMIT 5;",
+    "error_description": "",
+    "timestamp": "2026-03-29T23:21:34.882660"
+  },
+  {
+    "query": "Покажи все заказы за последние 30 дней",
+    "sql": "SELECT * FROM orders WHERE created_at >= CURRENT_DATE - INTERVAL '30 days';",
+    "error_description": "",
+    "timestamp": "2026-03-29T23:21:34.882660"
+  }
+]

@@ -1,105 +1,103 @@
 import json
 import re
 import os
-import requests
+from openai import OpenAI
 
 
-def yandex_gpt_query(user_query):
+def yandex_gpt_query(
+    user_query: str, temperature: float = 0.3, instructions: str | None = None
+):
     """
     Sends a user query to YandexGPT via Yandex Cloud API using an API key.
-    Returns a structured response including the model's answer or an error message.
-
-    Parameters
-    ----------
-    user_query : str
-        The user's query in natural language.
-
-    Returns
-    -------
-    dict
-        A dictionary with the processing status, the model's answer,
-        and an error description if applicable.
     """
-    API_KEY = os.getenv("YANDEX_API_KEY")
-    FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
+    YANDEX_CLOUD_API_KEY = os.getenv("YANDEX_CLOUD_API_KEY")
+    YANDEX_CLOUD_FOLDER = os.getenv("YANDEX_CLOUD_FOLDER")
+    YANDEX_CLOUD_MODEL = os.getenv("YANDEX_CLOUD_MODEL")
 
-    if not API_KEY:
+    if not YANDEX_CLOUD_API_KEY:
         return {
             "status": "failure",
             "answer": "",
-            "error": "Missing environment variable: YANDEX_API_KEY",
+            "error": "Missing environment variable: YANDEX_CLOUD_API_KEY",
         }
-    if not FOLDER_ID:
+    if not YANDEX_CLOUD_FOLDER:
         return {
             "status": "failure",
             "answer": "",
-            "error": "Missing environment variable: YANDEX_FOLDER_ID",
+            "error": "Missing environment variable: YANDEX_CLOUD_FOLDER",
+        }
+    if not YANDEX_CLOUD_MODEL:
+        return {
+            "status": "failure",
+            "answer": "",
+            "error": "Missing environment variable: YANDEX_CLOUD_MODEL",
         }
 
-    model_uri = f"gpt://{FOLDER_ID}/yandexgpt/latest"
-    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+    model_uri = f"gpt://{YANDEX_CLOUD_FOLDER}/{YANDEX_CLOUD_MODEL}"
+    url = "https://ai.api.cloud.yandex.net/v1"
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Api-Key {API_KEY}",
-        "x-folder-id": f"{FOLDER_ID}",
-    }
-
-    data = {
-        "modelUri": model_uri,
-        "completionOptions": {
-            "stream": False,
-            "temperature": 0.3,
-            "maxTokens": 2000,
-        },
-        "messages": [
-            {
-                "role": "system",
-                "text": "You are an assistant",
-            },
-            {
-                "role": "user",
-                "text": user_query,
-            },
-        ],
-    }
+    client = OpenAI(
+        api_key=YANDEX_CLOUD_API_KEY,
+        base_url=url,
+        project=YANDEX_CLOUD_FOLDER,
+    )
 
     try:
-        response = requests.post(
-            url, headers=headers, data=json.dumps(data), timeout=30
+        response = client.responses.create(
+            model=model_uri,
+            temperature=temperature,
+            instructions=instructions,
+            input=user_query,
+            max_output_tokens=500,
         )
 
-        if response.status_code == 200:
-            try:
-                result = response.json()
-                answer_text = result["result"]["alternatives"][0]["message"]["text"]
-                return {"status": "success", "answer": answer_text, "error": ""}
-            except (KeyError, IndexError, TypeError) as e:
-                return {
-                    "status": "failure",
-                    "answer": "",
-                    "error": f"Unexpected response format: {str(e)}",
-                }
-        else:
-            try:
-                error_detail = (
-                    response.json().get("error", {}).get("message", "Unknown error")
-                )
-            except Exception:
-                error_detail = response.text or f"HTTP {response.status_code}"
+        if response.error is not None:
             return {
                 "status": "failure",
                 "answer": "",
-                "error": f"API request failed with status {response.status_code}: {error_detail}",
+                "error": f"API error: {response.error}",
+            }
+        if response.status != "completed":
+            return {
+                "status": "failure",
+                "answer": "",
+                "error": f"Response status: {response.status}",
+            }
+        if not response.output:
+            return {
+                "status": "failure",
+                "answer": "",
+                "error": "Empty response output",
             }
 
-    except requests.exceptions.RequestException as e:
-        return {"status": "failure", "answer": "", "error": f"Request failed: {str(e)}"}
+        try:
+            first_message = response.output[0]
+            if hasattr(first_message, "content") and first_message.content:
+                first_content = first_message.content[0]
+                answer_text = getattr(first_content, "text", "")
+            else:
+                answer_text = ""
+        except (IndexError, AttributeError, TypeError) as e:
+            return {
+                "status": "failure",
+                "answer": "",
+                "error": f"Failed to parse response structure: {type(e).__name__}: {str(e)}",
+            }
+
+        if not answer_text:
+            return {
+                "status": "failure",
+                "answer": "",
+                "error": "Empty answer from model",
+            }
+
+        return {"status": "success", "answer": answer_text, "error": ""}
+
     except Exception as e:
         return {
             "status": "failure",
             "answer": "",
-            "error": f"Unexpected error: {str(e)}",
+            "error": f"Unexpected error: {type(e).__name__}: {str(e)}",
         }
 
 

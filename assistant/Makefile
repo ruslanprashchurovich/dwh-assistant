@@ -1,22 +1,17 @@
 .PHONY: setup run lint clean
 
 VENV := .venv
-PYTHON := $(VENV)/bin/python
-PIP := $(VENV)/bin/pip
+PYTHON := $(VENV)/Scripts/python.exe
+PIP := $(VENV)/Scripts/pip.exe
 
 # Install virtual environment and dependencies
 setup:
 	@echo "Creating virtual environment..."
-	python3 -m venv $(VENV)
+	python -m venv $(VENV)
 	@echo "Virtual environment created."
 	@echo "Installing dependencies..."
 	$(PIP) install -r requirements.txt
 	@echo "Dependencies installed."
-
-# To activate the virtual environment, run:
-# source .venv/bin/activate
-# To deactivate the virtual environment, run:
-# deactivate
 
 # Run the application
 run:
@@ -29,7 +24,7 @@ lint:
 # Clean project directory from temporary files
 clean:
 	@echo "Cleaning up..."
-	find . -type f -name '*.pyc' -delete
-	find . -type d -name '__pycache__' -delete
-	rm -rf $(VENV)
+	del /s /q *.pyc
+	rmdir /s /q __pycache__
+	rmdir /s /q $(VENV)
 	@echo "Cleaned up."
