@@ -8,6 +8,7 @@ PIP := $(VENV)/Scripts/pip.exe
 setup:
 	@echo "Creating virtual environment..."
 	python -m venv $(VENV)
+	python -m venv $(VENV)
 	@echo "Virtual environment created."
 	@echo "Installing dependencies..."
 	$(PIP) install -r requirements.txt
