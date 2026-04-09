@@ -13,7 +13,7 @@ setup:
 	$(PIP) install -r requirements.txt
 	@echo "Dependencies installed."
 
-# Run the application
+# Run the application (uvicorn)
 run:
 	$(PYTHON) run.py
 
@@ -25,6 +25,6 @@ lint:
 clean:
 	@echo "Cleaning up..."
 	del /s /q *.pyc
-	rmdir /s /q __pycache__
+	for /d /r . %%d in (__pycache__) do @if exist "%%d" rmdir /s /q "%%d"
 	rmdir /s /q $(VENV)
 	@echo "Cleaned up."

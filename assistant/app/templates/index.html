@@ -120,6 +120,31 @@
         .icon-btn:hover { color: var(--text); border-color: var(--accent-border); background: var(--accent-bg); }
         .icon-btn.active { color: var(--accent); border-color: var(--accent-border); background: var(--accent-bg); }
 
+        /* model selector */
+        .model-select {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            font-family: inherit;
+            font-size: 13px; font-weight: 500;
+            padding: 7px 28px 7px 10px;
+            border-radius: 9px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b6b6b'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            outline: none;
+        }
+        .model-select:hover { color: var(--text); border-color: var(--accent-border); background-color: var(--accent-bg); }
+        .model-select:focus { border-color: var(--accent); }
+        .model-select option {
+            background: var(--panel);
+            color: var(--text);
+        }
+
         /* text buttons */
         .btn-outline {
             background: var(--glass);
@@ -293,6 +318,12 @@
         .table-actions {
             display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
         }
+        .table-actions .btn-outline,
+        .table-actions .btn-accent {
+            flex: 1 1 auto; justify-content: center;
+            padding: 7px 12px; height: auto; font-size: 13px;
+            white-space: nowrap; min-width: fit-content;
+        }
 
         /* ===================== COMPOSER ===================== */
         .composer-wrap { padding: 12px 16px 14px; border-top: 1px solid var(--border); }
@@ -367,7 +398,7 @@
             color: var(--text);
             font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;
             padding: 10px 12px; resize: vertical;
-            outline: none; min-height: 90px;
+            outline: none; min-height: 44px;
             transition: border-color 0.15s ease, background var(--transition);
         }
         .manual-panel textarea::placeholder { color: var(--muted); }
@@ -443,6 +474,11 @@
                 <span class="status-dot"></span>
                 Online
             </div>
+            <select id="modelSelect" class="model-select" title="Выбрать AI модель">
+                <option value="yandex" {% if default_provider == 'yandex' %}selected{% endif %}>YandexGPT</option>
+                <option value="openai" {% if default_provider == 'openai' %}selected{% endif %}>ChatGPT</option>
+                <option value="anthropic" {% if default_provider == 'anthropic' %}selected{% endif %}>Claude</option>
+            </select>
             <button id="manualQueryToggle" class="btn-outline">
                 <i class="fas fa-code"></i>&ensp;Ручной SQL
             </button>
@@ -476,7 +512,7 @@
             </div>
 
             <!-- COMPOSER -->
-            <div class="composer-wrap">
+            <div class="composer-wrap" id="composerWrap">
                 <div class="composer" role="form" aria-label="Отправить запрос">
                     <div class="input-wrap">
                         <textarea id="userQuery" class="input-field" rows="1"
@@ -498,7 +534,7 @@
             <!-- MANUAL PANEL -->
             <div id="manualQueryPanel" class="manual-panel" style="display:none;">
                 <label for="manualQueryInput"><i class="fas fa-terminal" style="margin-right:5px"></i>Ручной SQL (можно вставить несколько строк)</label>
-                <textarea id="manualQueryInput" rows="4" placeholder="SELECT * FROM ..."></textarea>
+                <textarea id="manualQueryInput" rows="1" placeholder="SELECT * FROM ..."></textarea>
                 <div class="manual-panel-actions">
                     <button id="executeManualQuery" class="btn-accent"><i class="fas fa-play"></i>&ensp;Выполнить</button>
                     <button id="clearManual" class="btn-outline">Очистить</button>
@@ -601,6 +637,7 @@
     const clearManual       = document.getElementById('clearManual');
     const clearChatBtn      = document.getElementById('clearChatBtn');
     const charCounter       = document.getElementById('charCounter');
+    const modelSelect       = document.getElementById('modelSelect');
 
     const AVATAR_USER      = '/static/user_avatar.png';
     const AVATAR_ASSISTANT = '/static/assistant_avatar.png';
@@ -660,6 +697,8 @@
                 </div>`;
             chatbox.appendChild(w);
             messageCount = 0;
+            // Clear server-side conversation memory
+            fetch('/clear-memory', { method: 'POST' }).catch(e => console.warn('Failed to clear memory', e));
             showToast('Чат очищен', 'trash-alt');
         }, msgs.length * 30 + 200);
     });
@@ -669,29 +708,31 @@
     ========================================================= */
     document.addEventListener('DOMContentLoaded', ()=>{
         manualQueryToggle.addEventListener('click', ()=>{
+            const composerWrap = document.getElementById('composerWrap');
             const open = manualQueryPanel.style.display !== 'none';
-            manualQueryPanel.style.display = open ? 'none' : 'block';
-            manualQueryToggle.classList.toggle('active', !open);
+            if(open){
+                // Switch back to natural language mode
+                manualQueryPanel.style.display = 'none';
+                composerWrap.style.display = '';
+                manualQueryToggle.classList.remove('active');
+            } else {
+                // Switch to manual SQL mode
+                manualQueryPanel.style.display = 'block';
+                composerWrap.style.display = 'none';
+                manualQueryToggle.classList.add('active');
+                manualQueryInput.focus();
+            }
         });
 
         clearManual.addEventListener('click', ()=> manualQueryInput.value = '');
 
-        executeManualQuery.addEventListener('click', ()=>{
-            const manual = manualQueryInput.value.trim();
-            if(!manual){ showToast('Введите SQL запрос', 'exclamation-circle'); return; }
-            addMessageToChat({content: nlToBr(escapeHtml(manual)), isUser:true, rawHtml:true});
+        executeManualQuery.addEventListener('click', sendManualQuery);
 
-            fetch('/', {
-                method:'POST',
-                headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
-                body: JSON.stringify({manualQuery: manual})
-            }).then(r=>r.json()).then(data=>{
-                if(data.sql) addMessageToChat({content: 'SQL запрос:<br>'+nlToBr(escapeHtml(data.sql)), isUser:false, rawHtml:true});
-                if(data.result) addMessageToChat({content: nlToBr(escapeHtml(data.result)), isUser:false, rawHtml:true});
-                if(data.error) addMessageToChat({content: 'Ошибка:<br>'+nlToBr(escapeHtml(data.error)), isUser:false, isError:true, rawHtml:true});
-            }).catch(err=>{
-                console.error(err); addMessageToChat({content:'Сетевая ошибка: '+escapeHtml(String(err)), isUser:false, isError:true});
-            });
+        // Ctrl+Enter in manual SQL textarea
+        manualQueryInput.addEventListener('keydown', (e)=>{
+            if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){
+                e.preventDefault(); sendManualQuery();
+            }
         });
     });
 
@@ -720,7 +761,7 @@
 
         const meta = document.createElement('div');
         meta.className = 'msg-meta';
-        meta.innerHTML = `<span>${isUser ? 'Вы' : 'Ассистент'}</span><span>${formatTime()}</span>`;
+        meta.innerHTML = `<span>${isUser ? 'Вы' : getModelName()}</span><span>${formatTime()}</span>`;
 
         const bubble = document.createElement('div');
         bubble.className = 'bubble' + (isError ? ' is-error' : '');
@@ -779,6 +820,98 @@
     }
 
     /* =========================================================
+       MANUAL SQL SEND
+    ========================================================= */
+    function sendManualQuery(){
+        const manual = manualQueryInput.value.trim();
+        if(!manual){ showToast('Введите SQL запрос', 'exclamation-circle'); return; }
+        lastQuery = manual;
+        addMessageToChat({content: nlToBr(escapeHtml(manual)), isUser:true, rawHtml:true});
+        manualQueryInput.value = '';
+
+        fetch('/', {
+            method:'POST',
+            headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+            body: JSON.stringify({manualQuery: manual})
+        }).then(r=>r.json()).then(data=>{
+            if(data.sql) addMessageToChat({content: '<span class="sql-label">SQL запрос</span><pre><code>'+escapeHtml(data.sql)+'</code></pre>', isUser:false, rawHtml:true});
+            if(data.result){
+                var resultHtml = data.result;
+                if(typeof resultHtml === 'string' && resultHtml.trim().startsWith('<table')){
+                    resultHtml = cleanPandasTable(resultHtml);
+                }
+                addMessageToChat({content: truncateTable(resultHtml, data.totalRows, data.totalCols), isUser:false, rawHtml:true});
+            }
+            if(data.error) addMessageToChat({content: 'Ошибка:<br>'+nlToBr(escapeHtml(data.error)), isUser:false, isError:true, rawHtml:true});
+        }).catch(err=>{
+            console.error(err); addMessageToChat({content:'Сетевая ошибка: '+escapeHtml(String(err)), isUser:false, isError:true});
+        });
+    }
+
+    /* =========================================================
+       TABLE TRUNCATION (max 5 rows x 5 cols on screen)
+    ========================================================= */
+    function truncateTable(html, totalRows, totalCols){
+        try{
+            var MAX_ROWS = 5, MAX_COLS = 5;
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var table = doc.querySelector('table');
+            if(!table) return html;
+
+            var thead = table.querySelector('thead');
+            var tbody = table.querySelector('tbody');
+            var ths = thead ? Array.from(thead.querySelectorAll('th')) : [];
+            var rows = tbody ? Array.from(tbody.querySelectorAll('tr')) : [];
+            var numCols = ths.length;
+            var numRows = rows.length;
+            var colsTruncated = numCols > MAX_COLS;
+            var rowsTruncated = numRows > MAX_ROWS;
+
+            // Truncate columns
+            if(colsTruncated){
+                thead.querySelectorAll('tr').forEach(function(tr){
+                    var cells = Array.from(tr.querySelectorAll('th,td'));
+                    for(var i = MAX_COLS; i < cells.length; i++) cells[i].remove();
+                    var dots = document.createElement('th');
+                    dots.textContent = '...';
+                    tr.appendChild(dots);
+                });
+                rows.forEach(function(tr){
+                    var cells = Array.from(tr.querySelectorAll('td,th'));
+                    for(var i = MAX_COLS; i < cells.length; i++) cells[i].remove();
+                    var dots = document.createElement('td');
+                    dots.textContent = '...';
+                    tr.appendChild(dots);
+                });
+            }
+
+            // Truncate rows
+            if(rowsTruncated){
+                for(var i = MAX_ROWS; i < rows.length; i++) rows[i].remove();
+                var dotsRow = document.createElement('tr');
+                var colCount = Math.min(numCols, MAX_COLS) + (colsTruncated ? 1 : 0);
+                for(var j = 0; j < colCount; j++){
+                    var td = document.createElement('td');
+                    td.textContent = j === 0 ? '...' : '';
+                    dotsRow.appendChild(td);
+                }
+                tbody.appendChild(dotsRow);
+            }
+
+            var info = '';
+            if(totalRows !== undefined && totalCols !== undefined){
+                info = '<div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:monospace">' +
+                    'Показано ' + Math.min(numRows, MAX_ROWS) + ' из ' + (totalRows||numRows) + ' строк, ' +
+                    Math.min(numCols, MAX_COLS) + ' из ' + (totalCols||numCols) + ' столбцов</div>';
+            } else if(rowsTruncated || colsTruncated){
+                info = '<div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:monospace">Таблица обрезана для отображения</div>';
+            }
+
+            return table.outerHTML + info;
+        } catch(e){ console.warn('truncateTable failed', e); return html; }
+    }
+
+    /* =========================================================
        SEND / FETCH
     ========================================================= */
     function cleanPandasTable(html){
@@ -786,29 +919,15 @@
             const doc = new DOMParser().parseFromString(html, 'text/html');
             const table = doc.querySelector('table');
             if(!table) return html;
-            const firstTh = table.querySelector('thead th');
-            if(firstTh && (firstTh.textContent.trim() === '' || firstTh.textContent.toLowerCase().indexOf('index') !== -1 || firstTh.textContent.toLowerCase().indexOf('unnamed') !== -1)){
-                table.querySelectorAll('thead tr').forEach(function(tr){ if(tr.firstElementChild) tr.removeChild(tr.firstElementChild); });
-                table.querySelectorAll('tbody tr').forEach(function(tr){ if(tr.firstElementChild) tr.removeChild(tr.firstElementChild); });
-            }
-            table.querySelectorAll('tbody tr').forEach(function(tr){
-                var tds = tr.querySelectorAll('td');
-                if(tds.length >= 2){
-                    var nameCell = tds[0]; var priceCell = tds[1];
-                    var nameText = nameCell.textContent.trim();
-                    var priceText = priceCell.textContent.trim();
-                    var tokens = nameText.split(' ');
-                    var lastToken = tokens[tokens.length-1];
-                    if(!isNaN(Number(lastToken)) && !isNaN(Number(priceText.replace(/[^0-9.-]/g, '')))){
-                        tokens.pop(); nameCell.textContent = tokens.join(' ');
-                    }
-                }
-            });
             return table.outerHTML;
         } catch(e){ console.warn('cleanPandasTable failed', e); return html; }
     }
 
     var lastQuery = '';
+
+    // Model display names
+    const MODEL_NAMES = { yandex: 'YandexGPT', openai: 'ChatGPT', anthropic: 'Claude' };
+    function getModelName(){ return MODEL_NAMES[modelSelect.value] || modelSelect.value; }
 
     function sendMessage(){
         const text = userQueryInput.value.trim();
@@ -848,6 +967,7 @@
 
         const formData = new FormData();
         formData.append('user_query', text);
+        formData.append('model', modelSelect.value);
 
         fetch('/', { method:'POST', body: formData, headers:{'X-Requested-With':'XMLHttpRequest'}, signal })
         .then(function(r){ return r.json(); })
@@ -863,7 +983,7 @@
                 if(typeof resultHtml === 'string' && resultHtml.trim().startsWith('<table')){
                     resultHtml = cleanPandasTable(resultHtml);
                 }
-                addMessageToChat({content: resultHtml, isUser:false, rawHtml:true});
+                addMessageToChat({content: truncateTable(resultHtml, data.totalRows, data.totalCols), isUser:false, rawHtml:true});
             }
             if(data.error){
                 var err = 'Кажется, что-то сломалось:<br>'+nlToBr(escapeHtml(data.error));
@@ -921,44 +1041,36 @@
 
             const dlVisible = document.createElement('button');
             dlVisible.className = 'btn-outline';
-            dlVisible.innerHTML = '<i class="fas fa-download"></i>&ensp;Скачать таблицу (CSV)';
+            dlVisible.innerHTML = '<i class="fas fa-download"></i>&ensp;Скачать таблицу';
             dlVisible.onclick = function(){
                 const csv = tableToCSV(table);
-                downloadBlob(new Blob([csv], {type:'text/csv;charset=utf-8;'}), 'table.csv');
+                downloadBlob(new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'}), 'table.csv');
                 showToast('CSV скачан', 'download');
             };
 
             const dlFull = document.createElement('button');
             dlFull.className = 'btn-accent';
-            dlFull.style.padding = '7px 12px';
-            dlFull.style.height = 'auto';
-            dlFull.style.fontSize = '13px';
-            dlFull.innerHTML = '<i class="fas fa-table"></i>&ensp;Весь набор (CSV)';
+            dlFull.innerHTML = '<i class="fas fa-table"></i>&ensp;Весь набор';
             dlFull.onclick = function(){
                 if(!queryForFull){ showToast('Не удалось определить исходный запрос', 'exclamation-circle'); return; }
                 dlFull.disabled = true;
                 dlFull.innerHTML = '<i class="fas fa-spinner fa-spin"></i>&ensp;Генерируется…';
 
-                const fd = new FormData();
-                fd.append('user_query', queryForFull);
-                fd.append('download_full', '1');
-
-                fetch('/', { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest'} })
-                .then(function(resp){
-                    const ct = resp.headers.get('content-type') || '';
-                    if(ct.indexOf('text/csv') !== -1 || ct.indexOf('application/csv') !== -1 || ct.indexOf('application/octet-stream') !== -1){
-                        return resp.blob().then(function(b){ downloadBlob(b, 'full_dataset.csv'); showToast('Полный набор скачан', 'download'); });
-                    }
-                    return resp.json().then(function(j){
-                        if(j.csv){ downloadBlob(new Blob([j.csv],{type:'text/csv;charset=utf-8;'}), 'full_dataset.csv'); showToast('Полный набор скачан', 'download'); }
-                        else if(j.csv_base64){ const binary=atob(j.csv_base64); const len=binary.length; const bytes=new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=binary.charCodeAt(i); downloadBlob(new Blob([bytes],{type:'text/csv'}),'full_dataset.csv'); showToast('Полный набор скачан', 'download'); }
-                        else if(j.result && typeof j.result==='string' && j.result.trim().startsWith('<table')){
-                            const cleaned=cleanPandasTable(j.result); const wrapper=document.createElement('div'); wrapper.innerHTML=cleaned; const tbl=wrapper.querySelector('table'); if(tbl){ const csv=tableToCSV(tbl); downloadBlob(new Blob([csv],{type:'text/csv'}),'full_dataset.csv'); showToast('Полный набор скачан', 'download'); }
-                        } else { showToast('Не удалось получить CSV от бэкенда', 'exclamation-circle'); }
-                    });
+                fetch('/download-csv', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sql: queryForFull})
                 })
-                .catch(function(e){ console.error(e); showToast('Ошибка при загрузке', 'exclamation-circle'); })
-                .finally(function(){ dlFull.disabled=false; dlFull.innerHTML='<i class="fas fa-table"></i>&ensp;Весь набор (CSV)'; });
+                .then(function(resp){
+                    if(!resp.ok) return resp.json().then(function(j){ throw new Error(j.error || 'Ошибка сервера'); });
+                    return resp.blob();
+                })
+                .then(function(blob){
+                    downloadBlob(blob, 'full_dataset.csv');
+                    showToast('Полный набор скачан', 'download');
+                })
+                .catch(function(e){ console.error(e); showToast(e.message || 'Ошибка при загрузке', 'exclamation-circle'); })
+                .finally(function(){ dlFull.disabled=false; dlFull.innerHTML='<i class="fas fa-table"></i>&ensp;Весь набор'; });
             };
 
             actions.appendChild(dlVisible);

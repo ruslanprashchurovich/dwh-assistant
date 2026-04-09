@@ -1,13 +1,12 @@
 import os
 import json
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import asyncpg
 import pandas as pd
 
 
-def execute_sql_query(sql_query):
+async def execute_sql_query(sql_query: str) -> dict:
     """
-    Executes an SQL query in Postgres database and returns the results in a dictionary.
+    Executes an SQL query in Postgres database asynchronously and returns the results.
 
     Parameters
     ----------
@@ -17,7 +16,7 @@ def execute_sql_query(sql_query):
     Returns
     -------
     dict
-        A dictionary with two keys
+        A dictionary with two keys:
         - 'result' as a pandas DataFrame containing the query results,
         - 'error' with an error message if the execution failed.
     """
@@ -42,19 +41,22 @@ def execute_sql_query(sql_query):
         }
 
     conn = None
-    cursor = None
     try:
-        port = int(port)
-        conn = psycopg2.connect(
-            host=host, port=port, dbname=dbname, user=user, password=password
+        conn = await asyncpg.connect(
+            host=host,
+            port=int(port),
+            database=dbname,
+            user=user,
+            password=password,
         )
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(sql_query)
+        rows = await conn.fetch(sql_query)
 
-        columns = [desc[0] for desc in cursor.description] if cursor.description else []
-        rows = cursor.fetchall() if cursor.description else []
-
-        df = pd.DataFrame(rows, columns=columns) if columns else pd.DataFrame()
+        if rows:
+            columns = list(rows[0].keys())
+            data = [dict(row) for row in rows]
+            df = pd.DataFrame(data, columns=columns)
+        else:
+            df = pd.DataFrame()
 
         return {"result": df, "error": None}
 
@@ -62,13 +64,11 @@ def execute_sql_query(sql_query):
         return {"result": None, "error": str(e)}
 
     finally:
-        if cursor:
-            cursor.close()
         if conn:
-            conn.close()
+            await conn.close()
 
 
-def build_dbml_schema() -> str:
+async def build_dbml_schema() -> str:
     """
     Generates a DBML schema for specified tables
     in a PostgreSQL database schema using a static SQL query.
@@ -105,7 +105,7 @@ def build_dbml_schema() -> str:
         ORDER BY table_name, ordinal_position;
     """
 
-    result = execute_sql_query(query)
+    result = await execute_sql_query(query)
 
     if result["error"] is not None:
         raise RuntimeError(f"Failed to fetch schema: {result['error']}")
