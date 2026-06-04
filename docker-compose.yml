@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: dwh-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dwh}
+      POSTGRES_USER: ${POSTGRES_USER:-dwh_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dwh_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./db/load_csv.sh:/docker-entrypoint-initdb.d/02-load-csv.sh
+      - ./seed_data:/seed_data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-dwh_user} -d $${POSTGRES_DB:-dwh}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ./assistant
+      dockerfile: Dockerfile
+    container_name: dwh-assistant
+    ports:
+      - "5001:5000"
+    env_file:
+      - .env
+    environment:
+      # Override DB connection to point to the 'db' container
+      PG_STUDENT_HOST: db
+      PG_STUDENT_PORT: "5432"
+      PG_STUDENT_DBNAME: ${POSTGRES_DB:-dwh}
+      PG_STUDENT_USER: ${POSTGRES_USER:-dwh_user}
+      PG_STUDENT_PASSWORD: ${POSTGRES_PASSWORD:-dwh_password}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

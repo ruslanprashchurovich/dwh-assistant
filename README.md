@@ -17,17 +17,51 @@
 
 ## Как запустить проект
 
-### 1. Настройка окружения
+### Вариант 1: Docker Compose (рекомендуется)
 
-Создайте файл `.env` в папке `assistant/app/` на основе шаблона `.env_sample`. В нём необходимо указать:
+1. Создайте файл `.env` в корне проекта на основе шаблона `.env_sample` (в нём настраиваются и параметры базы данных, и API-ключи для AI-моделей).
+2. Положите CSV-файлы с данными в папку `seed_data/`
+   - Имена файлов должны совпадать с именами таблиц: `categories.csv`, `countries.csv`, `merchants.csv`, `users.csv`, `products.csv`, `orders.csv`, `order_items.csv`, `shipping_carriers.csv`
+   - Заголовки CSV должны совпадать с названиями колонок таблиц
+3. Запустите:
+
+```bash
+docker compose up --build
+```
+
+При первом запуске:
+- Создастся БД PostgreSQL с нужной схемой
+- CSV-файлы автоматически загрузятся в таблицы
+- Приложение стартует после готовности БД
+
+Сервис будет доступен по адресу `http://localhost:5001`.
+
+> **Примечание:** Переменные подключения к БД (`PG_STUDENT_*`) автоматически переопределяются в `docker-compose.yml` для работы с контейнером PostgreSQL.
+
+Для остановки:
+```bash
+docker compose down
+```
+
+Для полного сброса БД (пересоздание с загрузкой CSV):
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+### Вариант 2: Локальный запуск
+
+#### 1. Настройка окружения
+
+Создайте файл `.env` в корне проекта на основе шаблона `.env_sample` (или в папке `assistant/app/` для обратной совместимости). В нём необходимо указать:
 
 - Параметры подключения к PostgreSQL
 - API-ключи для используемых AI-провайдеров (достаточно настроить хотя бы один)
 - Список таблиц для анализа
 
-> Подробное описание всех переменных — в файле `assistant/app/.env_sample`.
+> Подробное описание всех переменных — в корневом файле `.env_sample`.
 
-### 2. Установка и запуск
+#### 2. Установка и запуск
 
 ```bash
 make setup
@@ -40,23 +74,31 @@ make run
 ## Структура проекта
 
 ```
-assistant/
-├── run.py                      # Точка входа (uvicorn)
-├── Makefile                    # Команды setup/run/lint/clean
-├── requirements.txt            # Зависимости
-└── app/
-    ├── __init__.py             # Инициализация приложения
-    ├── app.py                  # FastAPI-маршруты и логика
-    ├── .env_sample             # Шаблон переменных окружения
-    ├── services/
-    │   ├── database.py         # Асинхронная работа с PostgreSQL (asyncpg)
-    │   ├── llm.py              # Мульти-провайдерный LLM-сервис
-    │   └── memory.py           # Контекст диалога (последние 15 сообщений)
-    ├── templates/
-    │   └── index.html          # SPA-интерфейс
-    └── static/
-        ├── user_avatar.png
-        └── assistant_avatar.png
+dwh-assistant/
+├── docker-compose.yml          # Оркестрация Docker-сервисов
+├── db/
+│   ├── init.sql                # SQL-схема (CREATE TABLE)
+│   └── load_csv.sh             # Скрипт загрузки CSV при старте БД
+├── seed_data/                  # CSV-файлы с данными таблиц
+│   └── .gitkeep
+└── assistant/
+    ├── Dockerfile              # Docker-образ приложения
+    ├── run.py                  # Точка входа (uvicorn)
+    ├── Makefile                # Команды setup/run/lint/clean
+    ├── requirements.txt        # Зависимости
+    └── app/
+        ├── __init__.py         # Инициализация приложения
+        ├── app.py              # FastAPI-маршруты и логика
+        ├── .env_sample         # Шаблон переменных окружения
+        ├── services/
+        │   ├── database.py     # Асинхронная работа с PostgreSQL (asyncpg)
+        │   ├── llm.py          # Мульти-провайдерный LLM-сервис
+        │   └── memory.py       # Контекст диалога (последние 15 сообщений)
+        ├── templates/
+        │   └── index.html      # SPA-интерфейс
+        └── static/
+            ├── user_avatar.png
+            └── assistant_avatar.png
 ```
 
 ## Технологии

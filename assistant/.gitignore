@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-*.log
-*.tmp
-.env
-.venv
-.guideline
-Thumbs.db
-~$*.xlsx

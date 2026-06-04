@@ -1,0 +1,19 @@
+# Python
+**/__pycache__/
+**/*.pyc
+*.log
+*.tmp
+**/assistant/.venv/
+**/assistant/.guideline
+
+# OS templates
+Thumbs.db
+~$*.xlsx
+
+# Environment & Secrets
+.env
+**/app/.env
+
+# Docker & Database Seed
+postgres_data/
+seed_data/*.csv
