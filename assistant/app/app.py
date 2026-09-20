@@ -1,12 +1,14 @@
-import os
 import io
+import os
 from pathlib import Path
+
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from .services.database import execute_sql_query, build_dbml_schema
-from .services.llm import natural_language_to_sql, get_default_provider_name, PROVIDERS
+
+from .services.database import build_dbml_schema, execute_sql_query
+from .services.llm import PROVIDERS, get_default_provider_name, natural_language_to_sql
 from .services.memory import session_manager
 
 assistant_app = FastAPI(title="DWH Assistant")
